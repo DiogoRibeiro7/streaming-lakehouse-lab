@@ -1,0 +1,39 @@
+{
+  "name": "Streaming Lakehouse Lab",
+  "image": "mcr.microsoft.com/devcontainers/python:3.12",
+
+  "features": {
+    "ghcr.io/devcontainers/features/java:1": {
+      "version": "21",
+      "installGradle": "true"
+    }
+  },
+
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "ms-python.python",
+        "ms-python.vscode-pylance",
+        "charliermarsh.ruff",
+        "vscjava.vscode-java-pack",
+        "vscjava.vscode-gradle",
+        "ms-azuretools.vscode-docker",
+        "editorconfig.editorconfig"
+      ],
+      "settings": {
+        "python.defaultInterpreterPath": "${workspaceFolder}/.venv/bin/python",
+        "[python]": {
+          "editor.formatOnSave": true,
+          "editor.defaultFormatter": "charliermarsh.ruff"
+        },
+        "editor.formatOnSave": true,
+        "files.trimTrailingWhitespace": true,
+        "files.insertFinalNewline": true
+      }
+    }
+  },
+
+  "postCreateCommand": "curl -sSL https://install.python-poetry.org | python3 - && export PATH=\"/home/vscode/.local/bin:$PATH\" && poetry config virtualenvs.in-project true",
+
+  "remoteUser": "vscode"
+}

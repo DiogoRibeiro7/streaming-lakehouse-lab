@@ -1,0 +1,163 @@
+# ============================================================
+# Pre-commit Hooks Configuration
+# ============================================================
+# Automated code quality checks that run before each commit
+#
+# Installation:
+#   pre-commit install
+#
+# Usage:
+#   pre-commit run --all-files    # Run all hooks manually
+#   git commit                     # Hooks run automatically
+#
+# Skip hooks (when necessary):
+#   SKIP=ruff git commit -m "message"
+#   git commit --no-verify         # Skip all hooks (use sparingly)
+# ============================================================
+
+default_language_version:
+  python: python3.12
+
+repos:
+  # ------------------------------------------------------------
+  # General File Checks
+  # ------------------------------------------------------------
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.5.0
+    hooks:
+      # File format checks
+      - id: trailing-whitespace
+        name: Trim trailing whitespace
+        args: [--markdown-linebreak-ext=md]
+
+      - id: end-of-file-fixer
+        name: Fix end of files
+
+      - id: check-yaml
+        name: Check YAML syntax
+        exclude: ^docker/(flink/conf/|compose\.yml)
+
+      - id: check-json
+        name: Check JSON syntax
+
+      - id: check-toml
+        name: Check TOML syntax
+
+      - id: check-xml
+        name: Check XML syntax
+
+      # Git checks
+      - id: check-merge-conflict
+        name: Check for merge conflicts
+
+      - id: check-added-large-files
+        name: Check for large files
+        args: [--maxkb=1024]
+
+      # Security checks
+      - id: detect-private-key
+        name: Detect private keys
+
+      - id: check-case-conflict
+        name: Check filename case conflicts
+
+      # Code quality
+      - id: mixed-line-ending
+        name: Fix mixed line endings
+        args: [--fix=lf]
+
+  # ------------------------------------------------------------
+  # Python Code Formatting and Linting
+  # ------------------------------------------------------------
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.6.1
+    hooks:
+      # Run Ruff linter
+      - id: ruff
+        name: Ruff linter
+        args: [--fix]
+        types_or: [python, pyi]
+
+      # Run Ruff formatter
+      - id: ruff-format
+        name: Ruff formatter
+        types_or: [python, pyi]
+
+  # ------------------------------------------------------------
+  # Python Type Checking
+  # ------------------------------------------------------------
+  - repo: https://github.com/pre-commit/mirrors-mypy
+    rev: v1.11.1
+    hooks:
+      - id: mypy
+        name: MyPy type checker
+        additional_dependencies:
+          - types-psycopg2
+          - pydantic
+          - pydantic-settings
+        args:
+          - --strict
+          - --python-version=3.12
+        exclude: ^(tests/|scripts/|build/|flink-jobs/)
+
+  # ------------------------------------------------------------
+  # Secrets Detection (disabled - requires baseline to be initialized)
+  # ------------------------------------------------------------
+  # - repo: https://github.com/Yelp/detect-secrets
+  #   rev: v1.4.0
+  #   hooks:
+  #     - id: detect-secrets
+  #       name: Detect secrets
+  #       args:
+  #         - --baseline
+  #         - .secrets.baseline
+  #       exclude: |
+  #         (?x)^(
+  #             \.env\.example|
+  #             poetry\.lock|
+  #             \.secrets\.baseline
+  #         )$
+
+  # ------------------------------------------------------------
+  # Commit Message Validation (disabled - only runs on commit-msg)
+  # ------------------------------------------------------------
+  # - repo: https://github.com/compilerla/conventional-pre-commit
+  #   rev: v3.0.0
+  #   hooks:
+  #     - id: conventional-pre-commit
+  #       name: Conventional commit format
+  #       stages: [commit-msg]
+  #       args:
+  #         - feat
+  #         - fix
+  #         - docs
+  #         - style
+  #         - refactor
+  #         - perf
+  #         - test
+  #         - build
+  #         - ci
+  #         - chore
+
+  # ------------------------------------------------------------
+  # Docker Checks (disabled - requires Docker to be running)
+  # ------------------------------------------------------------
+  # - repo: https://github.com/hadolint/hadolint
+  #   rev: v2.12.0
+  #   hooks:
+  #     - id: hadolint-docker
+  #       name: Hadolint (Dockerfile linter)
+
+  # ------------------------------------------------------------
+  # Shell Script Checks
+  # ------------------------------------------------------------
+  - repo: https://github.com/shellcheck-py/shellcheck-py
+    rev: v0.9.0.6
+    hooks:
+      - id: shellcheck
+        name: ShellCheck (shell script linter)
+        args: [--severity=warning]
+
+# MISSING_VALIDATION: Add Java/Gradle code formatting checks (Spotless)
+# MISSING_TEST: Add pre-push hooks for running tests
+# MISSING_DOC: Add documentation generation validation

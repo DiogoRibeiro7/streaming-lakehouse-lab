@@ -1,0 +1,60 @@
+# ============================================================
+# Flink SQL Gateway Configuration
+# ============================================================
+# Default configuration for Flink SQL Gateway service
+# This enables REST API access to Flink SQL for interactive
+# queries and batch processing
+# ============================================================
+
+# REST endpoint configuration
+sql-gateway:
+  endpoint:
+    rest:
+      # Bind to all interfaces
+      address: 0.0.0.0
+      port: 8083
+
+    # Enable session management
+    session:
+      # Session timeout (idle sessions will be cleaned up)
+      idle-timeout: 10min
+      # Maximum number of concurrent sessions
+      max-count: 100
+      # Check interval for idle sessions
+      check-interval: 1min
+
+  # Worker threads for handling requests
+  worker:
+    threads:
+      min: 10
+      max: 100
+
+# Flink configuration for SQL Gateway sessions
+# These settings are applied to each SQL session
+configuration:
+  # Execution settings
+  execution:
+    runtime-mode: streaming
+    checkpointing:
+      interval: 60s
+      mode: EXACTLY_ONCE
+
+  # Table settings
+  table:
+    exec:
+      resource:
+        default-parallelism: 2
+
+  # Catalog configuration (Iceberg)
+  table.catalog-store.kind: generic_in_memory
+
+  # SQL client specific settings
+  sql-client:
+    verbose: true
+
+# Catalog configuration will be loaded from session initialization
+# See sql/catalogs/iceberg-catalog.sql for catalog setup
+
+# MISSING_DOC: Add authentication/authorization configuration
+# MISSING_VALIDATION: Add rate limiting configuration
+# MISSING_DOC: Add TLS/SSL configuration for production

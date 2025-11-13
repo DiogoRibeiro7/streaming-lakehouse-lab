@@ -1,0 +1,26 @@
+symbol,company_name,sector,industry,market_cap,country,ipo_year,exchange
+AAPL,Apple Inc.,Technology,Consumer Electronics,2800000000000,USA,1980,NASDAQ
+GOOGL,Alphabet Inc.,Technology,Internet Services,1700000000000,USA,2004,NASDAQ
+MSFT,Microsoft Corporation,Technology,Software,2600000000000,USA,1986,NASDAQ
+TSLA,Tesla Inc.,Consumer Cyclical,Auto Manufacturers,780000000000,USA,2010,NASDAQ
+AMZN,Amazon.com Inc.,Consumer Cyclical,Internet Retail,1500000000000,USA,1997,NASDAQ
+JPM,JPMorgan Chase & Co.,Financial Services,Banks,450000000000,USA,1980,NYSE
+JNJ,Johnson & Johnson,Healthcare,Pharmaceuticals,420000000000,USA,1944,NYSE
+XOM,Exxon Mobil Corporation,Energy,Oil & Gas,440000000000,USA,1920,NYSE
+WMT,Walmart Inc.,Consumer Defensive,Discount Stores,410000000000,USA,1972,NYSE
+V,Visa Inc.,Financial Services,Credit Services,520000000000,USA,2008,NYSE
+PG,Procter & Gamble Co.,Consumer Defensive,Household Products,380000000000,USA,1891,NYSE
+NVDA,NVIDIA Corporation,Technology,Semiconductors,1200000000000,USA,1999,NASDAQ
+MA,Mastercard Inc.,Financial Services,Credit Services,390000000000,USA,2006,NYSE
+HD,Home Depot Inc.,Consumer Cyclical,Home Improvement,370000000000,USA,1981,NYSE
+DIS,Walt Disney Co.,Communication Services,Entertainment,175000000000,USA,1957,NYSE
+BAC,Bank of America Corp.,Financial Services,Banks,290000000000,USA,1980,NYSE
+INTC,Intel Corporation,Technology,Semiconductors,185000000000,USA,1971,NASDAQ
+CSCO,Cisco Systems Inc.,Technology,Communication Equipment,210000000000,USA,1990,NASDAQ
+NFLX,Netflix Inc.,Communication Services,Entertainment,210000000000,USA,2002,NASDAQ
+PFE,Pfizer Inc.,Healthcare,Pharmaceuticals,165000000000,USA,1972,NYSE
+META,Meta Platforms Inc.,Technology,Internet Services,850000000000,USA,2012,NASDAQ
+ADBE,Adobe Inc.,Technology,Software,220000000000,USA,1986,NASDAQ
+CRM,Salesforce Inc.,Technology,Software,250000000000,USA,2004,NYSE
+ORCL,Oracle Corporation,Technology,Software,290000000000,USA,1986,NYSE
+AMD,Advanced Micro Devices,Technology,Semiconductors,240000000000,USA,1972,NASDAQ

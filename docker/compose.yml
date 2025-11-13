@@ -1,0 +1,278 @@
+# ============================================================
+# Streaming Lakehouse Lab - Docker Compose Configuration
+# ============================================================
+# Production-quality setup with Flink 2.1.x, Kafka 4.1.x (KRaft),
+# Iceberg REST Catalog, PostgreSQL 16, and MinIO
+#
+# Usage:
+#   make up        # Start all services
+#   make down      # Stop all services and remove volumes
+#   make logs      # Tail service logs
+# ============================================================
+
+networks:
+  lakehouse:
+    driver: bridge
+    name: ${DOCKER_NETWORK:-lakehouse-network}
+
+volumes:
+  kafka-data:
+  minio-data:
+  postgres-data:
+  flink-checkpoints:
+  flink-savepoints:
+
+services:
+  # ------------------------------------------------------------
+  # Apache Kafka (KRaft mode) - Message Broker
+  # ------------------------------------------------------------
+  kafka:
+    image: apache/kafka:4.1.0
+    container_name: kafka
+    hostname: kafka
+    networks:
+      - lakehouse
+    ports:
+      - "9092:9092"
+    environment:
+      # KRaft mode configuration (no ZooKeeper)
+      KAFKA_NODE_ID: 1
+      KAFKA_PROCESS_ROLES: broker,controller
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:9093
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      CLUSTER_ID: ${KAFKA_CLUSTER_ID:-MkU3OEVBNTcwNTJENDM2Qk}
+
+      # Listener configuration
+      KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:9092,CONTROLLER://0.0.0.0:9093
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,CONTROLLER:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+
+      # Performance tuning
+      KAFKA_NUM_PARTITIONS: 3
+      KAFKA_DEFAULT_REPLICATION_FACTOR: 1
+      KAFKA_MIN_INSYNC_REPLICAS: 1
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_LOG_DIRS: /var/lib/kafka/data
+      KAFKA_LOG_RETENTION_HOURS: 168
+      KAFKA_HEAP_OPTS: "-Xmx1G -Xms1G"
+    volumes:
+      - kafka-data:/var/lib/kafka/data
+    healthcheck:
+      test: ["CMD-SHELL", "kafka-broker-api-versions.sh --bootstrap-server localhost:9092 || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  # ------------------------------------------------------------
+  # PostgreSQL - Iceberg Catalog Database
+  # ------------------------------------------------------------
+  postgres:
+    image: postgres:16-alpine
+    container_name: postgres
+    hostname: postgres
+    networks:
+      - lakehouse
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-iceberg_catalog}
+      POSTGRES_USER: ${POSTGRES_USER:-iceberg}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-iceberg123}
+      PGDATA: /var/lib/postgresql/data/pgdata
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - ../infra/postgres/init.sql:/docker-entrypoint-initdb.d/01-init.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-iceberg} -d ${POSTGRES_DB:-iceberg_catalog}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    command:
+      - "postgres"
+      - "-c"
+      - "max_connections=200"
+      - "-c"
+      - "shared_buffers=256MB"
+
+  # ------------------------------------------------------------
+  # MinIO - S3-compatible Object Storage
+  # ------------------------------------------------------------
+  minio:
+    image: minio/minio:latest
+    container_name: minio
+    hostname: minio
+    networks:
+      - lakehouse
+    ports:
+      - "${MINIO_API_PORT:-9000}:9000"
+      - "${MINIO_CONSOLE_PORT:-9001}:9001"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-admin}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-password123}
+    volumes:
+      - minio-data:/data
+    command: server /data --console-address ":9001"
+    healthcheck:
+      test: ["CMD-SHELL", "mc ready local || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  # MinIO Client - Initialize buckets
+  minio-init:
+    image: minio/mc:latest
+    container_name: minio-init
+    networks:
+      - lakehouse
+    depends_on:
+      minio:
+        condition: service_healthy
+    entrypoint: >
+      /bin/sh -c "
+      mc alias set local http://minio:9000 ${MINIO_ROOT_USER:-admin} ${MINIO_ROOT_PASSWORD:-password123};
+      mc mb --ignore-existing local/${S3_BUCKET:-lakehouse};
+      mc mb --ignore-existing local/${S3_BUCKET:-lakehouse}/warehouse;
+      mc anonymous set download local/${S3_BUCKET:-lakehouse};
+      echo 'MinIO buckets initialized successfully';
+      exit 0;
+      "
+
+  # ------------------------------------------------------------
+  # Iceberg REST Catalog
+  # ------------------------------------------------------------
+  iceberg-rest:
+    image: tabulario/iceberg-rest:latest
+    container_name: iceberg-rest
+    hostname: iceberg-rest
+    networks:
+      - lakehouse
+    ports:
+      - "8181:8181"
+    environment:
+      CATALOG_WAREHOUSE: s3a://${S3_BUCKET:-lakehouse}/warehouse
+      CATALOG_IO__IMPL: org.apache.iceberg.aws.s3.S3FileIO
+      CATALOG_S3_ENDPOINT: http://minio:9000
+      CATALOG_S3_ACCESS__KEY__ID: ${MINIO_ROOT_USER:-admin}
+      CATALOG_S3_SECRET__ACCESS__KEY: ${MINIO_ROOT_PASSWORD:-password123}
+      CATALOG_S3_PATH__STYLE__ACCESS: "true"
+      CATALOG_URI: jdbc:postgresql://postgres:5432/${POSTGRES_DB:-iceberg_catalog}
+      CATALOG_JDBC_USER: ${POSTGRES_USER:-iceberg}
+      CATALOG_JDBC_PASSWORD: ${POSTGRES_PASSWORD:-iceberg123}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8181/v1/config || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+
+  # ------------------------------------------------------------
+  # Flink JobManager - Cluster Coordinator
+  # ------------------------------------------------------------
+  flink-jobmanager:
+    image: flink:2.1.0-java21
+    container_name: flink-jobmanager
+    hostname: flink-jobmanager
+    networks:
+      - lakehouse
+    ports:
+      - "${FLINK_JOBMANAGER_UI_PORT:-8081}:8081"
+      - "${FLINK_JOBMANAGER_RPC_PORT:-6123}:6123"
+    volumes:
+      - flink-checkpoints:/tmp/flink-checkpoints
+      - flink-savepoints:/tmp/flink-savepoints
+      - ../infra/flink/conf:/opt/flink/conf:ro
+    command: jobmanager
+    depends_on:
+      kafka:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8081/overview || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  # ------------------------------------------------------------
+  # Flink TaskManager #1
+  # ------------------------------------------------------------
+  flink-taskmanager-1:
+    image: flink:2.1.0-java21
+    container_name: flink-taskmanager-1
+    hostname: flink-taskmanager-1
+    networks:
+      - lakehouse
+    volumes:
+      - flink-checkpoints:/tmp/flink-checkpoints
+      - flink-savepoints:/tmp/flink-savepoints
+      - ../infra/flink/conf:/opt/flink/conf:ro
+    command: taskmanager
+    depends_on:
+      flink-jobmanager:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "pgrep -f taskmanager || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  # ------------------------------------------------------------
+  # Flink TaskManager #2
+  # ------------------------------------------------------------
+  flink-taskmanager-2:
+    image: flink:2.1.0-java21
+    container_name: flink-taskmanager-2
+    hostname: flink-taskmanager-2
+    networks:
+      - lakehouse
+    volumes:
+      - flink-checkpoints:/tmp/flink-checkpoints
+      - flink-savepoints:/tmp/flink-savepoints
+      - ../infra/flink/conf:/opt/flink/conf:ro
+    command: taskmanager
+    depends_on:
+      flink-jobmanager:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "pgrep -f taskmanager || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  # ------------------------------------------------------------
+  # Flink SQL Gateway - REST API for SQL queries
+  # ------------------------------------------------------------
+  flink-sql-gateway:
+    image: flink:2.1.0-java21
+    container_name: flink-sql-gateway
+    hostname: flink-sql-gateway
+    networks:
+      - lakehouse
+    ports:
+      - "${FLINK_SQL_GATEWAY_PORT:-8083}:8083"
+    volumes:
+      - ../infra/flink/conf:/opt/flink/conf:ro
+    command: bin/sql-gateway.sh start-foreground -Dsql-gateway.endpoint.rest.address=0.0.0.0
+    depends_on:
+      flink-jobmanager:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8083/v1/info || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 20s

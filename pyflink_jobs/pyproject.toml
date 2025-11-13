@@ -1,0 +1,208 @@
+[project]
+name = "pyflink-jobs"
+version = "0.1.0"
+description = "PyFlink streaming jobs for sensor anomaly detection"
+requires-python = ">=3.9,<3.13"
+dependencies = [
+    "apache-flink>=1.17.0,<2.0.0",
+    "setuptools>=68.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "ruff>=0.8.0",
+    "mypy>=1.13.0",
+    "types-setuptools>=75.0.0",
+]
+
+[build-system]
+requires = ["setuptools>=68.0"]
+build-backend = "setuptools.build_meta"
+
+# ============================================================
+# Ruff Configuration (Linting and Formatting)
+# ============================================================
+[tool.ruff]
+# Enable strict mode
+target-version = "py39"
+line-length = 100
+
+# Source code directories
+src = ["src"]
+extend-exclude = [
+    "__pycache__",
+    ".venv",
+    ".mypy_cache",
+    ".ruff_cache",
+    "*.egg-info",
+]
+
+[tool.ruff.lint]
+# Enable all recommended rules plus strict extras
+select = [
+    "E",      # pycodestyle errors
+    "W",      # pycodestyle warnings
+    "F",      # Pyflakes
+    "I",      # isort
+    "N",      # pep8-naming
+    "UP",     # pyupgrade
+    "YTT",    # flake8-2020
+    "ANN",    # flake8-annotations
+    "ASYNC",  # flake8-async
+    "S",      # flake8-bandit (security)
+    "BLE",    # flake8-blind-except
+    "FBT",    # flake8-boolean-trap
+    "B",      # flake8-bugbear
+    "A",      # flake8-builtins
+    "COM",    # flake8-commas
+    "C4",     # flake8-comprehensions
+    "DTZ",    # flake8-datetimez
+    "T10",    # flake8-debugger
+    "DJ",     # flake8-django
+    "EM",     # flake8-errmsg
+    "EXE",    # flake8-executable
+    "FA",     # flake8-future-annotations
+    "ISC",    # flake8-implicit-str-concat
+    "ICN",    # flake8-import-conventions
+    "G",      # flake8-logging-format
+    "INP",    # flake8-no-pep420
+    "PIE",    # flake8-pie
+    "T20",    # flake8-print
+    "PYI",    # flake8-pyi
+    "PT",     # flake8-pytest-style
+    "Q",      # flake8-quotes
+    "RSE",    # flake8-raise
+    "RET",    # flake8-return
+    "SLF",    # flake8-self
+    "SLOT",   # flake8-slots
+    "SIM",    # flake8-simplify
+    "TID",    # flake8-tidy-imports
+    "TCH",    # flake8-type-checking
+    "INT",    # flake8-gettext
+    "ARG",    # flake8-unused-arguments
+    "PTH",    # flake8-use-pathlib
+    "TD",     # flake8-todos
+    "FIX",    # flake8-fixme
+    "ERA",    # eradicate
+    "PD",     # pandas-vet
+    "PGH",    # pygrep-hooks
+    "PL",     # Pylint
+    "TRY",    # tryceratops
+    "FLY",    # flynt
+    "NPY",    # NumPy-specific
+    "PERF",   # Perflint
+    "LOG",    # flake8-logging
+    "RUF",    # Ruff-specific rules
+]
+
+ignore = [
+    "ANN101",  # Missing type annotation for self in method
+    "ANN102",  # Missing type annotation for cls in classmethod
+    "COM812",  # Trailing comma missing (conflicts with formatter)
+    "ISC001",  # Implicit string concatenation (conflicts with formatter)
+    "TD002",   # Missing author in TODO
+    "TD003",   # Missing issue link in TODO
+    "FIX002",  # Line contains TODO
+]
+
+# Allow autofix for all enabled rules
+fixable = ["ALL"]
+unfixable = []
+
+# Allow unused variables when prefixed with underscore
+dummy-variable-rgx = "^(_+|(_+[a-zA-Z0-9_]*[a-zA-Z0-9]+?))$"
+
+[tool.ruff.lint.per-file-ignores]
+"__init__.py" = ["F401", "D104"]  # Allow unused imports and missing docstrings
+"tests/*" = ["S101", "ANN", "D"]  # Allow assert, relax annotations and docstrings in tests
+
+[tool.ruff.lint.pydocstyle]
+convention = "google"  # Use Google docstring style
+
+[tool.ruff.lint.pylint]
+max-args = 8
+max-branches = 12
+max-returns = 6
+max-statements = 50
+
+[tool.ruff.lint.mccabe]
+max-complexity = 10
+
+[tool.ruff.format]
+# Use double quotes for strings
+quote-style = "double"
+indent-style = "space"
+skip-magic-trailing-comma = false
+line-ending = "auto"
+
+# ============================================================
+# MyPy Configuration (Type Checking)
+# ============================================================
+[tool.mypy]
+# Strict mode - enable all optional checks
+strict = true
+
+# Import discovery
+mypy_path = "src"
+packages = ["jobs"]
+namespace_packages = true
+
+# Platform configuration
+python_version = "3.9"
+platform = "linux"
+
+# Disallow dynamic typing
+disallow_any_unimported = true
+disallow_any_expr = false  # Too strict for practical use
+disallow_any_decorated = false  # Too strict for decorators
+disallow_any_explicit = false  # Allow explicit Any when needed
+disallow_any_generics = true
+disallow_subclassing_any = true
+
+# Disallow untyped definitions
+disallow_untyped_calls = true
+disallow_untyped_defs = true
+disallow_incomplete_defs = true
+check_untyped_defs = true
+disallow_untyped_decorators = false  # Flink decorators aren't typed
+
+# None and Optional handling
+no_implicit_optional = true
+strict_optional = true
+
+# Configuring warnings
+warn_redundant_casts = true
+warn_unused_ignores = true
+warn_no_return = true
+warn_return_any = true
+warn_unreachable = true
+
+# Strictness
+implicit_reexport = false
+strict_concatenate = true
+strict_equality = true
+
+# Error output
+show_error_context = true
+show_column_numbers = true
+show_error_codes = true
+pretty = true
+color_output = true
+error_summary = true
+
+# Incremental mode
+incremental = true
+cache_dir = ".mypy_cache"
+
+# Miscellaneous
+warn_unused_configs = true
+
+# Per-module options
+[[tool.mypy.overrides]]
+module = "pyflink.*"
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = "tests.*"
+disallow_untyped_defs = false
+disallow_incomplete_defs = false

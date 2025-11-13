@@ -1,0 +1,21 @@
+sensor_id,sensor_name,location,sensor_type,install_date,calibration_date,status
+sensor_001,Temperature Monitor A,Building-1-Floor-2,temperature,2024-01-15,2024-10-01,active
+sensor_002,Humidity Sensor B,Building-1-Floor-2,humidity,2024-01-15,2024-10-01,active
+sensor_003,Pressure Gauge C,Building-2-Floor-1,pressure,2024-02-10,2024-09-15,active
+sensor_004,Temperature Monitor D,Building-2-Floor-3,temperature,2024-02-20,2024-10-05,active
+sensor_005,Flow Meter E,Building-3-Basement,flow,2024-03-05,2024-09-20,active
+sensor_006,Vibration Sensor F,Building-1-Basement,vibration,2024-03-12,2024-08-30,maintenance
+sensor_007,CO2 Monitor G,Building-2-Floor-2,co2,2024-04-01,2024-10-10,active
+sensor_008,Light Sensor H,Building-3-Floor-1,light,2024-04-15,2024-09-25,active
+sensor_009,Pressure Gauge I,Building-1-Floor-1,pressure,2024-05-20,2024-10-12,active
+sensor_010,Temperature Monitor J,Building-3-Floor-2,temperature,2024-05-25,2024-10-15,active
+sensor_011,Humidity Sensor K,Building-2-Floor-1,humidity,2024-06-10,2024-10-20,active
+sensor_012,Flow Meter L,Building-1-Basement,flow,2024-06-15,2024-09-10,inactive
+sensor_013,Vibration Sensor M,Building-3-Basement,vibration,2024-07-01,2024-10-25,active
+sensor_014,CO2 Monitor N,Building-1-Floor-3,co2,2024-07-10,2024-10-28,active
+sensor_015,Light Sensor O,Building-2-Floor-3,light,2024-08-05,2024-11-01,active
+sensor_016,Temperature Monitor P,Building-3-Floor-3,temperature,2024-08-15,2024-11-05,active
+sensor_017,Pressure Gauge Q,Building-2-Basement,pressure,2024-09-01,2024-11-10,active
+sensor_018,Humidity Sensor R,Building-3-Floor-1,humidity,2024-09-10,2024-11-12,active
+sensor_019,Flow Meter S,Building-2-Floor-2,flow,2024-10-01,2024-11-15,active
+sensor_020,Vibration Sensor T,Building-1-Floor-1,vibration,2024-10-15,2024-11-18,active

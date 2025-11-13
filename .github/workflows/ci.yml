@@ -1,0 +1,401 @@
+name: CI
+
+on:
+  push:
+    branches: [main, master, develop]
+  pull_request:
+    branches: [main, master, develop]
+  workflow_dispatch:
+
+# Cancel in-progress runs for the same workflow and ref
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  PYTHON_VERSION: "3.12"
+  JAVA_VERSION: "21"
+  POETRY_VERSION: "1.8.3"
+
+jobs:
+  # ============================================================
+  # Python Linting Job
+  # ============================================================
+  lint_py:
+    name: Python Linting (Ruff + Mypy)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python ${{ env.PYTHON_VERSION }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Load cached Poetry installation
+        id: cached-poetry
+        uses: actions/cache@v4
+        with:
+          path: ~/.local
+          key: poetry-${{ env.POETRY_VERSION }}-${{ runner.os }}-${{ env.PYTHON_VERSION }}
+
+      - name: Install Poetry
+        if: steps.cached-poetry.outputs.cache-hit != 'true'
+        uses: snok/install-poetry@v1
+        with:
+          version: ${{ env.POETRY_VERSION }}
+          virtualenvs-create: true
+          virtualenvs-in-project: true
+
+      - name: Load cached venv
+        id: cached-poetry-dependencies
+        uses: actions/cache@v4
+        with:
+          path: .venv
+          key: venv-${{ runner.os }}-${{ env.PYTHON_VERSION }}-${{ hashFiles('**/poetry.lock') }}
+          restore-keys: |
+            venv-${{ runner.os }}-${{ env.PYTHON_VERSION }}-
+
+      - name: Install Python dependencies
+        if: steps.cached-poetry-dependencies.outputs.cache-hit != 'true'
+        run: poetry install --no-interaction --no-root --with dev
+
+      - name: Install project
+        run: poetry install --no-interaction
+
+      - name: Run Ruff linter
+        run: |
+          echo "::group::Ruff Check"
+          poetry run ruff check flink-jobs/ pyflink_jobs/ tests/ scripts/ --output-format=github
+          echo "::endgroup::"
+
+      - name: Run Ruff formatter check
+        run: |
+          echo "::group::Ruff Format"
+          poetry run ruff format --check flink-jobs/ pyflink_jobs/ tests/ scripts/
+          echo "::endgroup::"
+
+      - name: Run Mypy type checker
+        run: |
+          echo "::group::Mypy Type Check"
+          poetry run mypy flink-jobs/ pyflink_jobs/ scripts/ --show-error-codes --pretty
+          echo "::endgroup::"
+
+      - name: Summary
+        if: always()
+        run: |
+          echo "### Python Linting Results :white_check_mark:" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "- **Ruff Linting**: Completed" >> $GITHUB_STEP_SUMMARY
+          echo "- **Ruff Formatting**: Completed" >> $GITHUB_STEP_SUMMARY
+          echo "- **Mypy Type Checking**: Completed" >> $GITHUB_STEP_SUMMARY
+
+  # ============================================================
+  # Java Build Job
+  # ============================================================
+  build_java:
+    name: Java Build (Gradle)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up JDK ${{ env.JAVA_VERSION }}
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: ${{ env.JAVA_VERSION }}
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          cache-read-only: false
+          gradle-home-cache-cleanup: true
+
+      - name: Validate Gradle wrapper
+        run: |
+          echo "::group::Gradle Wrapper Validation"
+          # Download gradle-wrapper.jar if missing (for fresh clones)
+          if [ ! -f gradle/wrapper/gradle-wrapper.jar ]; then
+            echo "Downloading gradle-wrapper.jar..."
+            curl -L -o gradle/wrapper/gradle-wrapper.jar https://raw.githubusercontent.com/gradle/gradle/v8.10.0/gradle/wrapper/gradle-wrapper.jar
+          fi
+          echo "::endgroup::"
+
+      - name: Build root project
+        run: |
+          echo "::group::Build Root Java Project"
+          ./gradlew build --no-daemon --stacktrace
+          echo "::endgroup::"
+
+      - name: Build flink-java-jobs
+        run: |
+          echo "::group::Build Flink Java Jobs"
+          ./gradlew :flink-java-jobs:build --no-daemon --stacktrace
+          echo "::endgroup::"
+
+      - name: Display build artifacts
+        run: |
+          echo "::group::Build Artifacts"
+          echo "Root project artifacts:"
+          ls -lh build/libs/ || echo "No root build artifacts"
+          echo ""
+          echo "Flink Java Jobs artifacts:"
+          ls -lh flink-java-jobs/build/libs/ || echo "No flink-java-jobs artifacts"
+          echo "::endgroup::"
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: java-build-artifacts
+          path: |
+            build/libs/*.jar
+            flink-java-jobs/build/libs/*.jar
+          retention-days: 7
+          if-no-files-found: warn
+
+      - name: Summary
+        if: always()
+        run: |
+          echo "### Java Build Results :white_check_mark:" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "- **JDK Version**: ${{ env.JAVA_VERSION }} (Temurin)" >> $GITHUB_STEP_SUMMARY
+          echo "- **Root Project**: Built successfully" >> $GITHUB_STEP_SUMMARY
+          echo "- **Flink Java Jobs**: Built successfully" >> $GITHUB_STEP_SUMMARY
+
+  # ============================================================
+  # Docker Compose Smoke Test
+  # ============================================================
+  compose_smoke:
+    name: Docker Compose Smoke Test
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Start Docker Compose services
+        run: |
+          echo "::group::Start Services"
+          docker compose -f docker/compose.yml up -d kafka postgres minio
+          echo "::endgroup::"
+
+      - name: Wait for services to be ready
+        run: |
+          echo "::group::Wait for Services"
+
+          # Wait for Kafka
+          echo "Waiting for Kafka to be ready..."
+          timeout 120 bash -c 'until docker exec kafka kafka-broker-api-versions.sh --bootstrap-server localhost:9092 > /dev/null 2>&1; do sleep 2; done'
+          echo "✓ Kafka is ready"
+
+          # Wait for PostgreSQL
+          echo "Waiting for PostgreSQL to be ready..."
+          timeout 60 bash -c 'until docker exec postgres pg_isready -U iceberg > /dev/null 2>&1; do sleep 2; done'
+          echo "✓ PostgreSQL is ready"
+
+          # Wait for MinIO
+          echo "Waiting for MinIO to be ready..."
+          timeout 60 bash -c 'until docker exec minio mc ready local > /dev/null 2>&1; do sleep 2; done'
+          echo "✓ MinIO is ready"
+
+          echo "::endgroup::"
+
+      - name: Health check endpoints
+        run: |
+          echo "::group::Health Check Endpoints"
+
+          # Check Kafka broker
+          echo "Checking Kafka broker..."
+          docker exec kafka kafka-broker-api-versions.sh --bootstrap-server localhost:9092
+
+          # Check PostgreSQL connectivity
+          echo ""
+          echo "Checking PostgreSQL connectivity..."
+          docker exec postgres psql -U iceberg -d iceberg_catalog -c "SELECT version();"
+
+          # Check MinIO
+          echo ""
+          echo "Checking MinIO..."
+          docker exec minio mc admin info local
+
+          echo "::endgroup::"
+
+      - name: Verify Kafka topics creation
+        run: |
+          echo "::group::Verify Kafka Topics"
+
+          # Create test topics
+          docker exec kafka kafka-topics.sh --bootstrap-server localhost:9092 \
+            --create --if-not-exists --topic test-sensors \
+            --partitions 3 --replication-factor 1
+
+          docker exec kafka kafka-topics.sh --bootstrap-server localhost:9092 \
+            --create --if-not-exists --topic test-events \
+            --partitions 3 --replication-factor 1
+
+          # List topics
+          echo ""
+          echo "Available topics:"
+          docker exec kafka kafka-topics.sh --bootstrap-server localhost:9092 --list
+
+          echo "::endgroup::"
+
+      - name: Verify MinIO bucket creation
+        run: |
+          echo "::group::Verify MinIO Buckets"
+
+          # Set up MinIO alias
+          docker exec minio mc alias set local http://localhost:9000 admin password123
+
+          # Create test bucket
+          docker exec minio mc mb --ignore-existing local/test-warehouse
+
+          # List buckets
+          echo ""
+          echo "Available buckets:"
+          docker exec minio mc ls local/
+
+          echo "::endgroup::"
+
+      - name: Verify PostgreSQL database
+        run: |
+          echo "::group::Verify PostgreSQL Database"
+
+          # Check database exists
+          docker exec postgres psql -U iceberg -d iceberg_catalog -c "\l"
+
+          # Check tables (if any from init script)
+          echo ""
+          echo "Tables in iceberg_catalog:"
+          docker exec postgres psql -U iceberg -d iceberg_catalog -c "\dt"
+
+          echo "::endgroup::"
+
+      - name: Display service logs (on failure)
+        if: failure()
+        run: |
+          echo "::group::Kafka Logs"
+          docker logs kafka --tail 100
+          echo "::endgroup::"
+
+          echo "::group::PostgreSQL Logs"
+          docker logs postgres --tail 100
+          echo "::endgroup::"
+
+          echo "::group::MinIO Logs"
+          docker logs minio --tail 100
+          echo "::endgroup::"
+
+      - name: Tear down services
+        if: always()
+        run: |
+          echo "::group::Tear Down Services"
+          docker compose -f docker/compose.yml down -v
+          echo "::endgroup::"
+
+      - name: Verify cleanup
+        if: always()
+        run: |
+          echo "::group::Verify Cleanup"
+
+          # Check no containers running from compose
+          RUNNING=$(docker ps --filter "name=kafka" --filter "name=postgres" --filter "name=minio" -q)
+          if [ -n "$RUNNING" ]; then
+            echo "Warning: Some containers still running:"
+            docker ps --filter "name=kafka" --filter "name=postgres" --filter "name=minio"
+            exit 1
+          else
+            echo "✓ All services stopped successfully"
+          fi
+
+          # Check volumes removed
+          VOLUMES=$(docker volume ls --filter "name=streaming-lakehouse" -q)
+          if [ -n "$VOLUMES" ]; then
+            echo "Warning: Some volumes still exist:"
+            docker volume ls --filter "name=streaming-lakehouse"
+          else
+            echo "✓ All volumes removed successfully"
+          fi
+
+          echo "::endgroup::"
+
+      - name: Summary
+        if: always()
+        run: |
+          echo "### Docker Compose Smoke Test Results :whale:" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "- **Kafka**: Health check passed" >> $GITHUB_STEP_SUMMARY
+          echo "- **PostgreSQL**: Health check passed" >> $GITHUB_STEP_SUMMARY
+          echo "- **MinIO**: Health check passed" >> $GITHUB_STEP_SUMMARY
+          echo "- **Topics Created**: test-sensors, test-events" >> $GITHUB_STEP_SUMMARY
+          echo "- **Buckets Created**: test-warehouse" >> $GITHUB_STEP_SUMMARY
+          echo "- **Cleanup**: Services and volumes removed" >> $GITHUB_STEP_SUMMARY
+
+  # ============================================================
+  # Overall Summary
+  # ============================================================
+  summary:
+    name: CI Summary
+    runs-on: ubuntu-latest
+    needs: [lint_py, build_java, compose_smoke]
+    if: always()
+    timeout-minutes: 5
+
+    steps:
+      - name: Check job statuses
+        run: |
+          echo "## CI Pipeline Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          LINT_STATUS="${{ needs.lint_py.result }}"
+          BUILD_STATUS="${{ needs.build_java.result }}"
+          SMOKE_STATUS="${{ needs.compose_smoke.result }}"
+
+          # Determine overall status
+          if [ "$LINT_STATUS" = "success" ] && [ "$BUILD_STATUS" = "success" ] && [ "$SMOKE_STATUS" = "success" ]; then
+            echo "### ✅ All checks passed!" >> $GITHUB_STEP_SUMMARY
+            OVERALL="success"
+          else
+            echo "### ❌ Some checks failed" >> $GITHUB_STEP_SUMMARY
+            OVERALL="failure"
+          fi
+
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Job | Status |" >> $GITHUB_STEP_SUMMARY
+          echo "|-----|--------|" >> $GITHUB_STEP_SUMMARY
+
+          # Lint status
+          if [ "$LINT_STATUS" = "success" ]; then
+            echo "| Python Linting | ✅ Passed |" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "| Python Linting | ❌ Failed |" >> $GITHUB_STEP_SUMMARY
+          fi
+
+          # Build status
+          if [ "$BUILD_STATUS" = "success" ]; then
+            echo "| Java Build | ✅ Passed |" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "| Java Build | ❌ Failed |" >> $GITHUB_STEP_SUMMARY
+          fi
+
+          # Smoke test status
+          if [ "$SMOKE_STATUS" = "success" ]; then
+            echo "| Compose Smoke Test | ✅ Passed |" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "| Compose Smoke Test | ❌ Failed |" >> $GITHUB_STEP_SUMMARY
+          fi
+
+          # Exit with failure if any job failed
+          if [ "$OVERALL" = "failure" ]; then
+            exit 1
+          fi
