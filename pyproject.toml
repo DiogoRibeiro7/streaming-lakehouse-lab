@@ -8,7 +8,7 @@ license = "MIT"
 
 [tool.poetry.dependencies]
 python = "^3.12"
-apache-flink = "1.19.1"  # PyFlink compatible with Flink 2.1.x
+apache-flink = "2.1.1"  # PyFlink compatible with Flink 2.1.x
 kafka-python = "^2.0.2"
 pyiceberg = "^0.10.0"
 psycopg2-binary = "^2.9.9"
