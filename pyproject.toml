@@ -20,7 +20,7 @@ tenacity = "^9.0.0"
 
 [tool.poetry.group.dev.dependencies]
 pytest = "^8.3.2"
-pytest-cov = "^5.0.0"
+pytest-cov = "^7.0.0"
 pytest-asyncio = "^0.23.8"
 mypy = "^1.11.1"
 ruff = "^0.6.1"
